@@ -1,9 +1,6 @@
 import csv
 import io
 import math
-import os
-import uuid
-import shutil
 from typing import List, Optional
 
 from fastapi import APIRouter, Request, Form, Depends, Response, UploadFile, File, WebSocket, WebSocketDisconnect
@@ -17,7 +14,7 @@ from fastapi_cache import FastAPICache
 
 import database
 from database import User, Candidate, Vote, ElectionState, SiteBranding
-from utilities.utilities import get_db, get_current_user
+from utilities.utilities import get_db, get_current_user, save_upload, delete_upload
 
 admin_router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -231,14 +228,7 @@ async def add_candidate(
     if not user or user.role != "admin":
         return HTMLResponse("Unauthorized", status_code=403)
 
-    photo_url = None
-    if photo and photo.filename:
-        ext = photo.filename.split(".")[-1]
-        unique_filename = f"{uuid.uuid4()}.{ext}"
-        filepath = f"static/uploads/{unique_filename}"
-        with open(filepath, "wb") as buffer:
-            shutil.copyfileobj(photo.file, buffer)
-        photo_url = f"/{filepath}"
+    photo_url = save_upload(photo, db) if photo and photo.filename else None
 
     new_cand = Candidate(name=name, position=position, manifesto=manifesto, photo_path=photo_url)
     db.add(new_cand)
@@ -260,13 +250,7 @@ async def delete_candidate(candidate_id: int, request: Request, db: Session = De
 
     db_candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if db_candidate:
-        if db_candidate.photo_path:
-            file_path = db_candidate.photo_path.lstrip("/")
-            if os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                except Exception as e:
-                    print(f"Warning: Could not delete file {file_path}. Error: {e}")
+        delete_upload(db_candidate.photo_path, db)
 
         db.query(Vote).filter(Vote.candidate_id == candidate_id).delete(synchronize_session=False)
         db.delete(db_candidate)
@@ -385,38 +369,12 @@ async def update_site_branding(
     old_favicon = branding.favicon_path if branding and getattr(branding, 'favicon_path', None) else None
 
     if logo and logo.filename:
-        ext = logo.filename.split(".")[-1]
-        unique_filename = f"{uuid.uuid4()}.{ext}"
-        filepath = f"static/uploads/{unique_filename}"
-        with open(filepath, "wb") as buffer:
-            shutil.copyfileobj(logo.file, buffer)
-        # Delete previous uploaded logo if it was stored under static/uploads
-        try:
-            if old_logo and (old_logo.startswith("static/uploads/") or old_logo.startswith("/static/uploads/")):
-                old_path = old_logo.lstrip('/')
-                if os.path.exists(old_path):
-                    os.remove(old_path)
-        except Exception as e:
-            print(f"Warning: could not delete old logo {old_logo}. Error: {e}")
-
-        branding.logo_path = filepath
+        branding.logo_path = save_upload(logo, db)
+        delete_upload(old_logo, db)
 
     if favicon and favicon.filename:
-        fext = favicon.filename.split(".")[-1]
-        funique = f"{uuid.uuid4()}.{fext}"
-        fpath = f"static/uploads/{funique}"
-        with open(fpath, "wb") as buffer:
-            shutil.copyfileobj(favicon.file, buffer)
-        # Delete previous uploaded favicon if it was stored under static/uploads
-        try:
-            if old_favicon and (old_favicon.startswith("static/uploads/") or old_favicon.startswith("/static/uploads/")):
-                old_fpath = old_favicon.lstrip('/')
-                if os.path.exists(old_fpath):
-                    os.remove(old_fpath)
-        except Exception as e:
-            print(f"Warning: could not delete old favicon {old_favicon}. Error: {e}")
-
-        branding.favicon_path = fpath
+        branding.favicon_path = save_upload(favicon, db)
+        delete_upload(old_favicon, db)
 
     branding.school_name = school_name.strip() or branding.school_name or "Sekolah Kristen Tunas Daud"
     branding.portal_subtitle = portal_subtitle.strip() or branding.portal_subtitle or "E-Voting Portal"
@@ -547,28 +505,9 @@ async def edit_candidate(
 
     # Handle the photo replacement logic
     if photo and photo.filename:
-        # 1. Delete the OLD photo from the server storage
-        if candidate.photo_path:
-            # Strip the leading slash (e.g., "/static/uploads/file.png" -> "static/uploads/file.png")
-            old_file_path = candidate.photo_path.lstrip("/")
-            
-            # Check if the file physically exists on the hard drive, then delete it
-            if os.path.exists(old_file_path):
-                try:
-                    os.remove(old_file_path)
-                except Exception as e:
-                    print(f"Error deleting old photo: {e}")
-
-        # 2. Save the NEW photo
-        ext = photo.filename.split(".")[-1]
-        new_filename = f"{uuid.uuid4().hex}.{ext}"
-        new_file_path = os.path.join("static", "uploads", new_filename)
-        
-        with open(new_file_path, "wb") as buffer:
-            shutil.copyfileobj(photo.file, buffer)
-        
-        # 3. Update the database record with the new path
-        candidate.photo_path = f"/{new_file_path}"
+        # 1. Delete the OLD photo from storage, then 2. save the new one
+        delete_upload(candidate.photo_path, db)
+        candidate.photo_path = save_upload(photo, db)
 
     db.commit()
     
