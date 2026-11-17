@@ -1,3 +1,5 @@
+import traceback
+
 from fastapi import APIRouter, Request, Form, Depends, Response, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates

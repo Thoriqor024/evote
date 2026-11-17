@@ -219,3 +219,6 @@ __marimo__/
 .streamlit/secrets.toml
 
 .md
+# SQLite WAL sidecar files
+*.db-wal
+*.db-shm

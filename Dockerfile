@@ -15,7 +15,7 @@ COPY . .
 # No DATABASE_URL default on purpose: the app falls back to SQLite under DATA_DIR.
 # Set these at runtime instead so data survives container restarts, e.g.
 #   -e DATABASE_URL=postgresql://user:pass@host:5432/db   (Postgres)
-#   -e DATA_DIR=/var/data -v voting_data:/var/data        (SQLite + uploads on a volume)
+#   -e DATA_DIR=/var/data -v voting_data:/var/data        (SQLite on a mounted volume)
 
 # Create upload directory and ensure permissions
 RUN mkdir -p /app/static/uploads

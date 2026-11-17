@@ -9,7 +9,7 @@ from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
 
 import database
-from database import SessionLocal, User, ElectionState, SiteBranding, UploadedFile, UPLOAD_DIR
+from database import SessionLocal, User, ElectionState, SiteBranding, UploadedFile
 from routes.admin import admin_router
 from routes.client import client_router
 from utilities.utilities import get_db
@@ -51,10 +51,9 @@ def serve_upload(filename: str, db: Session = Depends(get_db)):
             headers={"Cache-Control": "public, max-age=86400"},
         )
 
-    for directory in (UPLOAD_DIR, os.path.join("static", "uploads")):
-        path = os.path.join(directory, filename)
-        if os.path.isfile(path):
-            return FileResponse(path)
+    legacy_path = os.path.join("static", "uploads", filename)
+    if os.path.isfile(legacy_path):
+        return FileResponse(legacy_path)
 
     raise HTTPException(status_code=404, detail="Image not found")
 

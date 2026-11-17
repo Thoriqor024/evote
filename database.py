@@ -8,17 +8,11 @@ from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 # Load local .env (gitignored) before reading DATABASE_URL / DATA_DIR.
 load_dotenv()
 
-# DATA_DIR lets you point the app's writable data (SQLite DB + uploaded files) at a
-# persistent volume. On Render/Docker the container filesystem is ephemeral, so set
-# DATA_DIR to a mounted disk (e.g. /var/data) or provide DATABASE_URL below.
+# Optional location for the SQLite fallback file. Production should set DATABASE_URL;
+# on Render/Docker the container filesystem is ephemeral.
 DATA_DIR = (os.getenv("DATA_DIR") or "").strip()
 if DATA_DIR:
     os.makedirs(DATA_DIR, exist_ok=True)
-
-# Uploaded candidate photos/logos live here. Served by main.py at /static/uploads/.
-UPLOAD_DIR = (os.getenv("UPLOAD_DIR") or "").strip() or (
-    os.path.join(DATA_DIR, "uploads") if DATA_DIR else "static/uploads"
-)
 
 
 def _database_url() -> str:
