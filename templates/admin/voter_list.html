@@ -9,6 +9,7 @@
                             onclick="document.querySelectorAll('.user-cb').forEach(cb => cb.checked = this.checked)">
                     </th>
                     <th>ID Siswa</th>
+                    <th>Nama Siswa</th>
                     <th>Peran Sistem</th>
                     <th class="text-center">Aksi</th>
                 </tr>
@@ -25,15 +26,58 @@
         {% for voter in voters %}
         <div class="flex items-center gap-3 rounded-xl border border-base-300 bg-base-100 p-3">
             <input type="checkbox" name="user_ids" value="{{ voter.id }}" class="user-cb checkbox checkbox-sm">
-            <div class="min-w-0">
+            <div class="min-w-0 flex-1">
                 <p class="truncate font-semibold">{{ voter.student_id }}</p>
+                <p class="truncate text-xs text-base-content/70">{{ voter.name or 'Nama belum diisi' }}</p>
                 <p class="text-xs uppercase tracking-widest text-base-content/50">{{ voter.role }}</p>
             </div>
+            <button
+                type="button"
+                onclick="document.getElementById('rename-modal-{{ voter.id }}').showModal()"
+                class="btn btn-xs btn-ghost gap-1 text-primary">
+                <i data-lucide="pencil"></i> Nama
+            </button>
         </div>
         {% endfor %}
     </div>
 
 </form>
+
+<!-- Dialog ubah nama sengaja dirender di luar <form id="bulk-delete-form">:
+     form bersarang tidak valid dan akan dibuang oleh HTML parser. -->
+{% for voter in voters %}
+<dialog id="rename-modal-{{ voter.id }}" class="modal">
+    <div class="modal-box max-w-md text-left">
+        <h3 class="text-lg font-bold">Ubah Nama Siswa</h3>
+        <p class="mt-1 text-sm text-base-content/60">ID Siswa: <span class="font-semibold">{{ voter.student_id }}</span></p>
+
+        <form hx-post="/admin/users/{{ voter.student_id }}/name"
+            hx-target="#user-row-{{ voter.id }}"
+            hx-swap="outerHTML"
+            hx-on::after-request="if(event.detail.successful) document.getElementById('rename-modal-{{ voter.id }}').close()"
+            class="mt-4 grid gap-4">
+            <label>
+                <span class="mb-1 block text-sm font-medium text-base-content/70">Nama Lengkap</span>
+                <input type="text" name="name" value="{{ voter.name or '' }}" placeholder="Contoh: Alya Putri"
+                    class="input input-bordered w-full">
+            </label>
+            <p class="text-xs text-base-content/50">Kosongkan untuk menghapus nama.</p>
+            <div class="modal-action">
+                <button type="submit" class="btn btn-primary gap-2">
+                    <i data-lucide="save"></i> Simpan Nama
+                </button>
+            </div>
+        </form>
+
+        <form method="dialog" class="mt-2 flex justify-end">
+            <button class="btn btn-ghost btn-sm">Batal</button>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+{% endfor %}
 
 <!-- Navigasi halaman -->
 <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

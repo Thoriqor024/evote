@@ -65,6 +65,7 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(String, unique=True, index=True)
+    name = Column(String, nullable=True) # Nama lengkap siswa (opsional)
     password = Column(String) # Storing plaintext only for this local mock-up!
     role = Column(String, default="student") # 'student' or 'admin'
     
@@ -137,4 +138,14 @@ try:
                 conn.execute(text('ALTER TABLE site_branding ADD COLUMN browser_title VARCHAR'))
 except Exception:
     # If the table doesn't exist yet or migration fails, ignore and let create_all handle it
+    pass
+
+# Add student name column to users if missing (migrations for older DBs)
+try:
+    if 'users' in inspector.get_table_names():
+        user_columns = [c['name'] for c in inspector.get_columns('users')]
+        if 'name' not in user_columns:
+            with engine.begin() as conn:
+                conn.execute(text('ALTER TABLE users ADD COLUMN name VARCHAR'))
+except Exception:
     pass

@@ -1,19 +1,35 @@
-<tr class="transition-colors hover:bg-base-200/60">
+<tr id="user-row-{{ voter.id }}" class="transition-colors hover:bg-base-200/60">
     <td class="text-center">
         <input type="checkbox" name="user_ids" value="{{ voter.id }}" class="user-cb checkbox checkbox-sm cursor-pointer">
     </td>
     <td class="font-medium">{{ voter.student_id }}</td>
+    <td class="text-base-content/80">
+        {% if voter.name %}
+            {{ voter.name }}
+        {% else %}
+            <span class="text-base-content/40">—</span>
+        {% endif %}
+    </td>
     <td>
         <span class="badge badge-ghost badge-sm uppercase tracking-wide">{{ voter.role }}</span>
     </td>
     <td class="text-center">
-        <button
-            hx-delete="/admin/users/{{ voter.student_id }}"
-            hx-target="closest tr"
-            hx-swap="outerHTML"
-            hx-confirm="Hapus akun siswa ini? Tindakan ini tidak dapat dibatalkan."
-            class="btn btn-xs btn-ghost gap-1 text-error">
-            <i data-lucide="trash-2"></i> Hapus
-        </button>
+        <div class="flex items-center justify-center gap-1">
+            <button
+                type="button"
+                onclick="document.getElementById('rename-modal-{{ voter.id }}').showModal()"
+                class="btn btn-xs btn-ghost gap-1 text-primary">
+                <i data-lucide="pencil"></i> Nama
+            </button>
+
+            <button
+                hx-delete="/admin/users/{{ voter.student_id }}"
+                hx-target="closest tr"
+                hx-swap="outerHTML"
+                hx-confirm="Hapus akun siswa ini? Tindakan ini tidak dapat dibatalkan."
+                class="btn btn-xs btn-ghost gap-1 text-error">
+                <i data-lucide="trash-2"></i> Hapus
+            </button>
+        </div>
     </td>
 </tr>

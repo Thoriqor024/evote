@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request, Form, Depends, Response, UploadFile, Fil
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from fastapi_cache.decorator import cache
 
 from fastapi_cache import FastAPICache
@@ -69,7 +69,10 @@ async def get_user_list(
 
     base_query = db.query(User).filter(User.role == "student")
     if q:
-        base_query = base_query.filter(User.student_id.ilike(f"%{q}%"))
+        pattern = f"%{q}%"
+        base_query = base_query.filter(
+            or_(User.student_id.ilike(pattern), User.name.ilike(pattern))
+        )
 
     if voted_status == "voted":
         base_query = base_query.filter(User.votes.any())
@@ -78,7 +81,8 @@ async def get_user_list(
 
     total_voters = base_query.count()
     offset = (page - 1) * limit
-    voters = base_query.offset(offset).limit(limit).all()
+    # Siswa terbaru tampil lebih dulu (halaman 1)
+    voters = base_query.order_by(User.id.desc()).offset(offset).limit(limit).all()
     total_pages = math.ceil(total_voters / limit) if total_voters > 0 else 1
 
     return templates.TemplateResponse(
@@ -106,7 +110,7 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
 
     limit = 10
     total_voters = db.query(User).filter(User.role == "student").count()
-    voters = db.query(User).filter(User.role == "student").offset(0).limit(limit).all()
+    voters = db.query(User).filter(User.role == "student").order_by(User.id.desc()).offset(0).limit(limit).all()
     total_pages = math.ceil(total_voters / limit) if total_voters > 0 else 1
     total_students = total_voters
     voted_students = db.query(User).filter(User.role == "student", User.votes.any()).count()
@@ -282,6 +286,7 @@ async def reset_all_votes(request: Request, db: Session = Depends(get_db)):
 async def add_user_manual(
     request: Request,
     student_id: str = Form(...),
+    name: str = Form(""),
     password: str = Form(...),
     db: Session = Depends(get_db)
 ):
@@ -291,10 +296,15 @@ async def add_user_manual(
 
     if db.query(User).filter(User.student_id == student_id).first():
         return HTMLResponse(
-            "<tr><td colspan='3' class='p-2 text-red-500'>Error: Student ID already exists.</td></tr>"
+            "<tr><td colspan='5' class='p-2 text-red-500'>Error: Student ID already exists.</td></tr>"
         )
 
-    new_user = User(student_id=student_id, password=password, role="student")
+    new_user = User(
+        student_id=student_id.strip(),
+        name=name.strip() or None,
+        password=password,
+        role="student",
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -303,6 +313,33 @@ async def add_user_manual(
         request=request,
         name="admin/user_row.html",
         context={"voter": new_user}
+    )
+
+
+@admin_router.post("/admin/users/{student_id}/name", response_class=HTMLResponse)
+async def update_student_name(
+    request: Request,
+    student_id: str,
+    name: str = Form(""),
+    db: Session = Depends(get_db)
+):
+    user = get_current_user(request, db)
+    if not user or user.role != "admin":
+        return HTMLResponse("Unauthorized", status_code=403)
+
+    target_user = db.query(User).filter(User.student_id == student_id, User.role == "student").first()
+    if not target_user:
+        return HTMLResponse("Student not found", status_code=404)
+
+    target_user.name = name.strip() or None
+    db.commit()
+    db.refresh(target_user)
+
+    # Kembalikan baris tabel terbarui agar HTMX bisa menggantinya langsung
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/user_row.html",
+        context={"voter": target_user}
     )
 
 
@@ -328,9 +365,21 @@ async def add_users_bulk(
         for row in reader:
             if len(row) >= 2:
                 student_id = row[0].strip()
-                password = row[1].strip()
+                if len(row) >= 3:
+                    # Format baru: ID Siswa, Nama Lengkap, Kata Sandi
+                    name = row[1].strip()
+                    password = row[2].strip()
+                else:
+                    # Berkas lama: ID Siswa, Kata Sandi (tanpa nama)
+                    name = ""
+                    password = row[1].strip()
                 if student_id and not db.query(User).filter(User.student_id == student_id).first():
-                    db.add(User(student_id=student_id, password=password, role="student"))
+                    db.add(User(
+                        student_id=student_id,
+                        name=name or None,
+                        password=password,
+                        role="student",
+                    ))
                     added_count += 1
 
         db.commit()

@@ -341,6 +341,11 @@
                                 class="input input-bordered w-full" />
                         </label>
                         <label>
+                            <span class="mb-1 block text-sm font-medium text-base-content/70">Nama Lengkap Siswa</span>
+                            <input type="text" name="name" placeholder="Contoh: Alya Putri"
+                                class="input input-bordered w-full" />
+                        </label>
+                        <label>
                             <span class="mb-1 block text-sm font-medium text-base-content/70">Kata Sandi Sementara</span>
                             <input type="text" name="password" placeholder="Kata sandi awal siswa" required
                                 class="input input-bordered w-full" />
@@ -360,8 +365,12 @@
                     </h2>
                     <p class="mt-1 text-sm text-base-content/60">
                         Di Excel pilih <strong>File &gt; Save As &gt; CSV (Comma delimited)</strong>.
-                        Format: kolom A = ID Siswa, kolom B = Kata Sandi, dengan baris judul.
+                        Format kolom: <strong>ID Siswa, Nama Lengkap, Kata Sandi</strong>, dengan baris judul.
                     </p>
+                    <a href="/static/template_import_siswa.csv" download
+                        class="btn btn-ghost btn-sm mt-3 gap-1.5 px-0 text-primary">
+                        <i data-lucide="download"></i> Unduh Template CSV
+                    </a>
 
                     <form hx-post="/admin/users/bulk" hx-encoding="multipart/form-data"
                         hx-target="#bulk-upload-status" hx-swap="innerHTML"
@@ -392,8 +401,8 @@
                 <div id="roster-controls" class="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div class="flex w-full flex-col gap-3 sm:flex-row sm:items-end lg:w-2/3">
                         <label class="w-full">
-                            <span class="mb-1 block text-sm font-medium text-base-content/70">Cari ID Siswa</span>
-                            <input type="search" name="q" placeholder="Cari ID siswa..."
+                            <span class="mb-1 block text-sm font-medium text-base-content/70">Cari Siswa</span>
+                            <input type="search" name="q" placeholder="Cari ID atau nama siswa..."
                                 class="input input-bordered w-full"
                                 hx-get="/admin/users/list"
                                 hx-trigger="keyup changed delay:400ms, search"
