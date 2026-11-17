@@ -1,236 +1,654 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-6 rounded-3xl shadow-lg mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 border border-blue-800">
-    <div>
-        <h2 class="text-xl font-extrabold tracking-tight">Election Lifecycle Control</h2>
-        <p class="text-blue-200 text-sm mt-0.5">Current Status: <span id="current-status-badge" class="font-bold text-yellow-400 bg-black/30 px-3 py-1 rounded-full uppercase ml-1">{{ status }}</span></p>
-        <p class="text-blue-200 text-sm mt-2">Turnout: <span class="font-bold text-white">{{ turnout_pct }}</span>% of registered students have voted.</p>
-    </div>
-    
-    <!-- Toggles change the database instantly via HTMX -->
-    <form hx-post="/admin/election/status" hx-target="#current-status-badge" hx-swap="innerHTML" class="flex bg-black/20 p-1.5 rounded-2xl border border-white/10">
-        <button type="submit" name="status" value="SETUP" class="px-4 py-2 rounded-xl text-xs font-bold hover:bg-white hover:text-gray-900 transition focus:bg-white focus:text-gray-900">1. SETUP</button>
-        <button type="submit" name="status" value="OPEN" class="px-4 py-2 rounded-xl text-xs font-bold hover:bg-green-500 hover:text-white transition focus:bg-green-500 focus:text-white">2. OPEN</button>
-        <button type="submit" name="status" value="CLOSED" class="px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-500 hover:text-white transition focus:bg-red-500 focus:text-white">3. CLOSE</button>
-    </form>
-</div>
+<!DOCTYPE html>
+<html lang="id" data-theme="corporate">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ branding.browser_title if branding and branding.browser_title else (branding.school_name if branding else 'Student Council Election') }}</title>
+    <link rel="icon" href="{{ ('/' + branding.favicon_path) if branding and branding.favicon_path and not branding.favicon_path.startswith('/') else (branding.favicon_path if branding and branding.favicon_path else '/static/favicon.ico') }}" type="image/x-icon">
 
-<div class="bg-gradient-to-r from-indigo-900 to-blue-900 text-white p-6 rounded-3xl shadow-lg mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 border border-blue-800">
-    <div>
-        <h2 class="text-xl font-extrabold tracking-tight">Receipt Lookup</h2>
-        <form hx-get="/admin/receipt" hx-target="#receipt-lookup-result" hx-swap="innerHTML" class="flex gap-2 flex-col sm:flex-row items-stretch sm:items-center">
-                <input type="text" name="receipt_id" placeholder="Receipt ID (e.g. A7-X9-K2)" class="flex-1 border border-white/20 rounded-xl px-3 py-2 bg-black/20 text-white placeholder:text-slate-300" required>
-                <button type="submit" class="bg-white text-slate-900 px-4 py-2 rounded-xl font-semibold hover:bg-slate-100 transition">Check</button>
-            </form>
-            <div id="receipt-lookup-result" class="mt-3 text-sm text-white"></div>
-        
-    </div>
-</div>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 
-<div class="bg-white p-6 rounded shadow mb-8">
-    <h2 class="text-xl font-bold mb-4">Site Branding</h2>
-    <p class="text-sm text-gray-600 mb-4">Update the site logo and displayed school name or subtitle.</p>
-    <form hx-post="/admin/branding" hx-encoding="multipart/form-data" hx-target="#branding-status" hx-swap="innerHTML" hx-on::after-request="if(event.detail.successful) this.reset()" class="grid gap-4">
-        <div class="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-3 items-center">
-            <label class="text-sm font-semibold">School Name</label>
-            <input type="text" name="school_name" value="{{ branding.school_name if branding else '' }}" class="w-full border p-2 rounded" required>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-3 items-center">
-            <label class="text-sm font-semibold">Portal Subtitle</label>
-            <input type="text" name="portal_subtitle" value="{{ branding.portal_subtitle if branding else '' }}" class="w-full border p-2 rounded" required>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-3 items-center">
-            <label class="text-sm font-semibold">Browser Title</label>
-            <input type="text" name="browser_title" value="{{ branding.browser_title if branding else '' }}" class="w-full border p-2 rounded">
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-3 items-center">
-            <label class="text-sm font-semibold">Logo Image</label>
-            <input type="file" name="logo" accept="image/*" class="w-full border p-1.5 rounded bg-white cursor-pointer">
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-3 items-center">
-            <label class="text-sm font-semibold">Favicon</label>
-            <input type="file" name="favicon" accept="image/*,.ico" class="w-full border p-1.5 rounded bg-white cursor-pointer">
-        </div>
-        <div class="sm:col-span-2">
-            <button type="submit" class="w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition">Update Branding</button>
-        </div>
-        <div id="branding-status"></div>
-    </form>
-</div>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/static/htmx.min.js"></script>
 
-<div class="bg-white p-6 rounded shadow mb-8">
-    <h2 class="text-xl font-bold mb-4">Admin Password</h2>
-    <form hx-post="/admin/password/change" hx-target="#password-change-status" hx-swap="innerHTML" hx-on::after-request="if(event.detail.successful) this.reset()" class="grid gap-4">
-        <div class="grid grid-cols-1 sm:grid-cols-[160px_minmax(0,1fr)] gap-3 items-center">
-            <label class="text-sm font-semibold">Current Password</label>
-            <input type="password" name="current_password" class="w-full border p-2 rounded" required>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-[160px_minmax(0,1fr)] gap-3 items-center">
-            <label class="text-sm font-semibold">New Password</label>
-            <input type="password" name="new_password" class="w-full border p-2 rounded" required>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-[160px_minmax(0,1fr)] gap-3 items-center">
-            <label class="text-sm font-semibold">Confirm Password</label>
-            <input type="password" name="confirm_password" class="w-full border p-2 rounded" required>
-        </div>
-        <div class="sm:col-span-2">
-            <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">Update Password</button>
-        </div>
-        <div id="password-change-status"></div>
-    </form>
-</div>
+    <style>
+        :root {
+            --font-heading: 'Montserrat', ui-sans-serif, system-ui, sans-serif;
+            --font-body: 'Open Sans', ui-sans-serif, system-ui, sans-serif;
+        }
 
-<div class="bg-white p-6 rounded shadow mb-8">
-    <h2 class="text-xl font-bold mb-4">Add Candidate</h2>
-    <form hx-post="/admin/candidates" hx-encoding="multipart/form-data" hx-target="#candidate-list" hx-swap="beforeend" hx-on::after-request="if(event.detail.successful) this.reset()" class="grid gap-4">
-        <div class="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-3 items-center">
-            <label class="text-sm font-semibold">Name:</label>
-            <input type="text" name="name" class="w-full border p-2 rounded" required>
+        html, body {
+            font-family: var(--font-body);
+            font-weight: 500;
+        }
+
+        h1, h2, h3, h4, h5, h6, legend {
+            font-family: var(--font-heading);
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        button, input, select, textarea, .btn, .tab, .badge {
+            font-family: var(--font-body);
+            font-weight: 500;
+        }
+
+        .lucide, [data-lucide] { width: 1.15rem; height: 1.15rem; stroke-width: 1.9; }
+        .hero-gradient {
+            background-image: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary) 45%, var(--color-secondary) 100%);
+        }
+
+        /* Kontrol tahapan: segmented control yang tenang dan profesional */
+        .status-seg {
+            display: inline-flex;
+            gap: 2px;
+            padding: 4px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            background: rgba(255, 255, 255, 0.10);
+        }
+
+        .status-seg button {
+            border: 0;
+            background: transparent;
+            border-radius: 9px;
+            padding: 0.5rem 0.95rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            line-height: 1;
+            color: rgba(255, 255, 255, 0.75);
+            cursor: pointer;
+            transition: background-color .18s ease, color .18s ease;
+        }
+
+        .status-seg button:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
+
+        .status-seg button.is-active {
+            background: #fff;
+            color: var(--color-primary);
+            font-weight: 600;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-base-200 text-base-content antialiased">
+
+    <!-- ============================= NAVBAR ============================= -->
+    <header class="sticky top-0 z-40 border-b border-base-300 bg-base-100/90 backdrop-blur">
+        <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+
+            <a href="/" class="flex min-w-0 items-center gap-3">
+                <img
+                    src="{{ ('/' + branding.logo_path) if branding and branding.logo_path and not branding.logo_path.startswith('/') else (branding.logo_path if branding and branding.logo_path else '/static/logo_Sekolah.png') }}"
+                    alt="{{ branding.school_name if branding else 'School' }} Logo"
+                    class="h-10 w-10 shrink-0 rounded-xl border border-base-300 bg-base-100 object-contain p-0.5">
+                <span class="min-w-0">
+                    <span class="block max-w-[7.5rem] truncate text-sm font-bold leading-tight sm:max-w-none sm:text-base">{{ branding.school_name if branding else 'Sekolah Kristen Tunas Daud' }}</span>
+                    <span class="hidden truncate text-[11px] font-semibold uppercase tracking-wider text-base-content/50 sm:block">{{ branding.portal_subtitle if branding else 'E-Voting Portal' }}</span>
+                </span>
+            </a>
+
+            <div class="flex items-center gap-2 sm:gap-3">
+                <nav class="hidden items-center gap-1 rounded-full bg-base-200 p-1 text-xs font-semibold md:flex">
+                    <a href="/admin" class="rounded-full bg-base-100 px-3 py-1.5 text-primary shadow-sm">Dasbor Admin</a>
+                    <a href="/results" class="rounded-full px-3 py-1.5 text-base-content/60 transition hover:text-primary">Hasil Langsung</a>
+                </nav>
+
+                <a href="/results" class="btn btn-ghost btn-sm gap-1.5 md:hidden">
+                    <i data-lucide="bar-chart-3"></i>
+                </a>
+
+                <div class="flex items-center gap-2 rounded-full border border-base-300 bg-base-100 px-2.5 py-1.5 sm:px-3">
+                    <span class="h-2 w-2 rounded-full bg-success"></span>
+                    <span class="hidden text-xs font-bold sm:inline sm:text-sm">{{ user.student_id }}</span>
+                    <span class="badge badge-primary badge-xs font-bold uppercase tracking-wide">Admin</span>
+                </div>
+
+                <form action="/logout" method="POST" class="m-0">
+                    <button type="submit" title="Keluar"
+                        class="btn btn-error btn-outline btn-sm gap-1.5">
+                        <i data-lucide="log-out"></i>
+                        <span class="hidden sm:inline">Keluar</span>
+                    </button>
+                </form>
+            </div>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-3 items-center">
-            <label class="text-sm font-semibold">Position:</label>
-            <input type="text" name="position" value="President" class="w-full border p-2 rounded" required>
+    </header>
+
+    <main class="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+
+        <!-- ============================= HERO ============================= -->
+        <section class="hero-gradient overflow-hidden rounded-2xl bg-primary p-6 text-primary-content shadow-lg sm:p-8">
+            <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                <div class="space-y-3">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.22em] text-primary-content/80">Kontrol Tahapan Pemilihan</p>
+                    <h1 class="text-2xl font-extrabold tracking-tight sm:text-3xl">Status Pemilihan Saat Ini</h1>
+
+                    <div class="flex flex-wrap items-center gap-2 text-xs font-semibold sm:text-sm">
+                        <span class="inline-flex items-center gap-2 rounded-full bg-black/20 px-3 py-1.5">
+                            <i data-lucide="activity"></i>
+                            Status:
+                            <span id="current-status-badge" class="font-extrabold uppercase tracking-wide">{{ status }}</span>
+                        </span>
+                        <span class="inline-flex items-center gap-2 rounded-full bg-black/20 px-3 py-1.5">
+                            <i data-lucide="users"></i>
+                            Partisipasi {{ turnout_pct }}%
+                        </span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2 sm:items-end">
+                    <span class="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary-content/60">Ubah Tahapan</span>
+                    <form hx-post="/admin/election/status" hx-target="#current-status-badge" hx-swap="innerHTML" class="status-seg">
+                        <button type="submit" name="status" value="SETUP" data-status-value="SETUP">Persiapan</button>
+                        <button type="submit" name="status" value="OPEN" data-status-value="OPEN">Buka</button>
+                        <button type="submit" name="status" value="CLOSED" data-status-value="CLOSED">Tutup</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="mt-6 space-y-2">
+                <div class="flex items-center justify-between text-xs font-semibold text-primary-content/80">
+                    <span>Progres partisipasi pemilih</span>
+                    <span>{{ turnout_pct }}%</span>
+                </div>
+                <div class="h-2.5 w-full overflow-hidden rounded-full bg-black/20">
+                    <div class="h-full rounded-full bg-base-100 transition-all duration-500" style="width: {{ turnout_pct }}%"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================= TABS ============================= -->
+        <div role="tablist" class="tabs tabs-boxed tabs-box w-full overflow-x-auto bg-base-100 p-1 shadow-sm sm:w-fit">
+            <button type="button" role="tab" class="tab tab-active gap-1.5 whitespace-nowrap font-semibold" data-tab-target="#panel-kontrol">
+                <i data-lucide="gauge"></i> Kontrol &amp; Cek Suara
+            </button>
+            <button type="button" role="tab" class="tab gap-1.5 whitespace-nowrap font-semibold" data-tab-target="#panel-kandidat">
+                <i data-lucide="users-round"></i> Kelola Kandidat
+            </button>
+            <button type="button" role="tab" class="tab gap-1.5 whitespace-nowrap font-semibold" data-tab-target="#panel-pemilih">
+                <i data-lucide="list-checks"></i> Data Pemilih
+            </button>
+            <button type="button" role="tab" class="tab gap-1.5 whitespace-nowrap font-semibold" data-tab-target="#panel-pengaturan">
+                <i data-lucide="settings"></i> Pengaturan &amp; Keamanan
+            </button>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-3 items-start">
-            <label class="text-sm font-semibold pt-2">Visi dan Misi:</label>
-            <textarea name="manifesto" rows="4" placeholder="Use new lines for bullets or paragraphs..." class="w-full border p-2 rounded resize-none" required></textarea>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-[140px_minmax(0,1fr)] gap-3 items-center">
-            <label class="text-sm font-semibold">Photo:</label>
-            <input type="file" name="photo" accept="image/*" class="w-full border p-1.5 rounded bg-white cursor-pointer">
-        </div>
-        <div class="sm:col-span-2">
-            <button type="submit" class="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">Add Candidate</button>
-        </div>
-    </form>
-</div>
 
-<div class="bg-white p-6 rounded shadow">
-    <h2 class="text-xl font-bold mb-4">Manage Candidates</h2>
-    <table class="w-full text-left border-collapse">
-        <thead>
-            <tr class="bg-gray-100">
-                <th class="p-2 border w-16 text-center">Photo</th>
-                <th class="p-2 border">Name</th>
-                <th class="p-2 border">Position</th>
-                <th class="p-2 border">Actions</th>
-            </tr>
-        </thead>
-        <tbody id="candidate-list">
-            {% for candidate in candidates %}
-                {% include 'admin/candidate_row.html' %}
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-<!-- ======================================================================================== -->
+        <!-- ============================= TAB 1: KONTROL ============================= -->
+        <section id="panel-kontrol" data-tab-panel role="tabpanel" class="space-y-6">
+            {% set voted_count = ((turnout_pct * total_voters) / 100) | round(0, 'common') | int %}
 
-<div class="bg-white p-6 rounded shadow mb-8">
-    <h2 class="text-xl font-bold mb-4">Manage Voters</h2>
-    
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
-        <div class="border p-4 rounded bg-gray-50">
-            <h3 class="font-bold text-gray-700 mb-2">Add Single Student</h3>
-            <form hx-post="/admin/users/manual" 
-      hx-target="#voter-list" 
-      hx-swap="afterbegin" 
-      hx-on::after-request="if(event.detail.successful) {htmx.ajax('GET', '/admin/users/list', '#voter-list-container'); this.reset()}" 
-      class="space-y-3">
-                <input type="text" name="student_id" placeholder="Student ID" class="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" required>
-                <input type="text" name="password" placeholder="Temporary Password" class="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" required>
-                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded w-full hover:bg-blue-700 transition-colors font-semibold">
-                    Add Student
-                </button>
-            </form>
-        </div>
-        
-        <div class="border p-4 rounded bg-gray-50">
-            <h3 class="font-bold text-gray-700 mb-2">Bulk Upload (Excel to CSV)</h3>
-            <p class="text-xs text-gray-600 mb-4">
-                In Excel, click <strong>File > Save As</strong> and choose <strong>CSV (Comma delimited) (*.csv)</strong>. <br>
-                <em>Format: Column A = Student ID, Column B = Password. Includes header row.</em>
-            </p>
-            
-            <form hx-post="/admin/users/bulk" 
-      hx-encoding="multipart/form-data" 
-      hx-target="#bulk-upload-status" 
-      hx-swap="innerHTML" 
-      hx-on::after-request="if(event.detail.successful) htmx.ajax('GET', '/admin/users/list', '#voter-list-container')"
-      class="space-y-3">
-                <input type="file" name="file" accept=".csv" class="w-full border p-2 rounded bg-white cursor-pointer" required>
-                <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded w-full hover:bg-green-700 transition-colors font-semibold">
-                    Upload & Import Data
-                </button>
-            </form>
-            <div id="bulk-upload-status"></div>
-        </div>
-    </div>
+            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
+                    <div class="flex items-start justify-between">
+                        <p class="text-sm font-medium text-base-content/60">Total Pemilih</p>
+                        <span class="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 text-primary"><i data-lucide="users"></i></span>
+                    </div>
+                    <p class="mt-3 text-3xl font-extrabold tracking-tight">{{ total_voters }}</p>
+                    <p class="mt-1 text-xs text-base-content/50">Siswa terdaftar pada sistem</p>
+                </div>
 
-    <!-- Table Controls -->
-<!-- Table Controls, Search & Turnout Filter -->
-<div id="roster-controls" class="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-3 mt-8 gap-4">
-    
-    <!-- Left: Search & Filter Inputs -->
-    <div class="w-full lg:w-2/3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-        <h3 class="font-bold text-gray-700 whitespace-nowrap mr-2">Student Roster</h3>
-        
-        <!-- Search Input -->
-        <input 
-            type="search" 
-            name="q" 
-            placeholder="Search by Student ID..." 
-            class="flex-1 border p-1.5 px-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50"
-            hx-get="/admin/users/list"
-            hx-trigger="keyup changed delay:400ms, search"
-            hx-include="#roster-controls *"
-            hx-target="#voter-list-container">
+                <div class="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
+                    <div class="flex items-start justify-between">
+                        <p class="text-sm font-medium text-base-content/60">Suara Masuk</p>
+                        <span class="grid h-9 w-9 place-items-center rounded-xl bg-success/10 text-success"><i data-lucide="check-check"></i></span>
+                    </div>
+                    <p class="mt-3 text-3xl font-extrabold tracking-tight">{{ voted_count }}</p>
+                    <p class="mt-1 text-xs text-base-content/50">Pemilih yang sudah menyalurkan suara</p>
+                </div>
 
-        <!-- Turnout Filter Dropdown -->
-        <select 
-            name="voted_status" 
-            class="border p-1.5 px-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50 font-medium cursor-pointer"
-            hx-get="/admin/users/list"
-            hx-trigger="change"
-            hx-include="#roster-controls *"
-            hx-target="#voter-list-container">
-            <option value="all">All Students</option>
-            <option value="voted">✅ Have Voted</option>
-            <option value="unvoted">❌ Have Not Voted</option>
-        </select>
-    </div>
+                <div class="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
+                    <div class="flex items-start justify-between">
+                        <p class="text-sm font-medium text-base-content/60">Persentase Partisipasi</p>
+                        <span class="grid h-9 w-9 place-items-center rounded-xl bg-warning/10 text-warning"><i data-lucide="percent"></i></span>
+                    </div>
+                    <p class="mt-3 text-3xl font-extrabold tracking-tight">{{ turnout_pct }}%</p>
+                    <div class="mt-3 h-2 w-full overflow-hidden rounded-full bg-base-200">
+                        <div class="h-full rounded-full bg-warning" style="width: {{ turnout_pct }}%"></div>
+                    </div>
+                </div>
 
-    <!-- Right: Existing Danger Buttons -->
-    <div class="space-x-2 whitespace-nowrap self-end">
-        <button form="bulk-delete-form" type="submit" class="bg-yellow-500 text-white px-3 py-1.5 rounded-xl text-sm font-semibold hover:bg-yellow-600 transition shadow-xs">
-            Delete Selected
-        </button>
-        <button hx-delete="/admin/users/all" hx-target="#voter-list-container" hx-swap="innerHTML" hx-confirm="WARNING: This will permanently erase ALL students and their votes. Continue?" class="bg-red-600 text-white px-3 py-1.5 rounded-xl text-sm font-semibold hover:bg-red-700 transition shadow-xs">
-            Wipe All Students
-        </button>
-    </div>
-</div>
+                <div class="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
+                    <div class="flex items-start justify-between">
+                        <p class="text-sm font-medium text-base-content/60">Kandidat Terdaftar</p>
+                        <span class="grid h-9 w-9 place-items-center rounded-xl bg-secondary/10 text-secondary"><i data-lucide="users"></i></span>
+                    </div>
+                    <p class="mt-3 text-3xl font-extrabold tracking-tight">{{ candidates | length }}</p>
+                    <p class="mt-1 text-xs text-base-content/50">Pasangan calon aktif</p>
+                </div>
+            </div>
 
-<div id="voter-list-container">
-    {% include 'admin/voter_list.html' %}
-</div>
-</div>
-</div>
+            <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+                <div class="flex flex-col gap-1">
+                    <h2 class="flex items-center gap-2 text-lg font-bold">
+                        <i data-lucide="receipt-text" class="text-primary"></i> Cek Bukti Suara
+                    </h2>
+                    <p class="text-sm text-base-content/60">Masukkan ID bukti suara (receipt) yang diberikan kepada pemilih untuk memverifikasi bahwa suaranya tercatat.</p>
+                </div>
 
-<!-- =================================================================================================== -->
+                <form hx-get="/admin/receipt" hx-target="#receipt-lookup-result" hx-swap="innerHTML"
+                    class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                    <label class="w-full sm:max-w-sm">
+                        <span class="mb-1 block text-sm font-medium text-base-content/70">ID Bukti Suara</span>
+                        <input type="text" name="receipt_id" placeholder="Contoh: A7-X9-K2" required
+                            class="input input-bordered w-full" />
+                    </label>
+                    <button type="submit" class="btn btn-primary gap-2">
+                        <i data-lucide="search"></i> Periksa
+                    </button>
+                </form>
 
-<div class="bg-white p-6 rounded shadow border-t-4 border-red-600 mt-8">
-    <h2 class="text-xl font-bold text-red-600 mb-2">Danger Zone</h2>
-    <p class="text-gray-600 mb-4 text-sm">This action cannot be undone. It will wipe all recorded votes from the database and reset the live results to zero.</p>
-    
-    <div id="reset-status-message" class="mb-4"></div>
-    
-    <button 
-        hx-delete="/admin/votes/reset" 
-        hx-target="#reset-status-message"
-        hx-swap="innerHTML"
-        hx-confirm="WARNING: You are about to DELETE ALL VOTES. Are you absolutely sure?"
-        class="bg-red-600 text-white font-bold py-2 px-4 rounded hover:bg-red-700 transition-colors">
-        Reset Entire Election
-    </button>
-</div>
-{% endblock %}
+                <div id="receipt-lookup-result" class="mt-4"></div>
+            </div>
+        </section>
+
+        <!-- ============================= TAB 2: KANDIDAT ============================= -->
+        <section id="panel-kandidat" data-tab-panel role="tabpanel" class="hidden">
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
+
+                <!-- Form tambah kandidat -->
+                <div class="lg:col-span-5">
+                    <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+                        <h2 class="flex items-center gap-2 text-lg font-bold">
+                            <i data-lucide="user-plus" class="text-primary"></i> Tambah Kandidat
+                        </h2>
+                        <p class="mt-1 text-sm text-base-content/60">Lengkapi data calon beserta visi dan misinya.</p>
+
+                        <form hx-post="/admin/candidates" hx-encoding="multipart/form-data"
+                            hx-target="#candidate-list" hx-swap="beforeend"
+                            hx-on::after-request="if(event.detail.successful) this.reset()"
+                            class="mt-5 grid gap-4">
+
+                            <label>
+                                <span class="mb-1 block text-sm font-medium text-base-content/70">Nama Kandidat</span>
+                                <input type="text" name="name" placeholder="Nama lengkap calon" required
+                                    class="input input-bordered w-full" />
+                            </label>
+
+                            <label>
+                                <span class="mb-1 block text-sm font-medium text-base-content/70">Jabatan</span>
+                                <input type="text" name="position" value="President" required
+                                    class="input input-bordered w-full" />
+                            </label>
+
+                            <label>
+                                <span class="mb-1 block text-sm font-medium text-base-content/70">Visi dan Misi</span>
+                                <textarea name="manifesto" rows="5" required placeholder="Tuliskan visi dan misi, gunakan baris baru untuk poin-poin..."
+                                    class="textarea textarea-bordered w-full"></textarea>
+                            </label>
+
+                            <label>
+                                <span class="mb-1 block text-sm font-medium text-base-content/70">Foto Kandidat</span>
+                                <input type="file" name="photo" accept="image/*"
+                                    class="file-input file-input-bordered w-full" />
+                            </label>
+
+                            <div class="flex justify-end">
+                                <button type="submit" class="btn btn-success gap-2 px-6">
+                                    <i data-lucide="plus"></i> Simpan Kandidat
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Daftar kandidat -->
+                <div class="lg:col-span-7">
+                    <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h2 class="flex items-center gap-2 text-lg font-bold">
+                                <i data-lucide="layout-grid" class="text-primary"></i> Daftar Kandidat
+                            </h2>
+                            <span class="badge badge-ghost">{{ candidates | length }} kandidat</span>
+                        </div>
+
+                        <p id="candidates-empty" class="hidden rounded-xl border border-dashed border-base-300 bg-base-200/50 p-6 text-center text-sm text-base-content/50">
+                            Belum ada kandidat. Tambahkan melalui formulir di samping.
+                        </p>
+
+                        <div id="candidate-list" class="mt-4 grid gap-3">
+                            {% for candidate in candidates %}
+                                {% include 'admin/candidate_row.html' %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ============================= TAB 3: PEMILIH ============================= -->
+        <section id="panel-pemilih" data-tab-panel role="tabpanel" class="hidden space-y-6">
+
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <!-- Tambah satu siswa -->
+                <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+                    <h2 class="flex items-center gap-2 text-lg font-bold">
+                        <i data-lucide="user-plus" class="text-primary"></i> Tambah Siswa Tunggal
+                    </h2>
+                    <p class="mt-1 text-sm text-base-content/60">Buat akun pemilih baru secara manual.</p>
+
+                    <form hx-post="/admin/users/manual" hx-target="#voter-list" hx-swap="afterbegin"
+                        hx-on::after-request="if(event.detail.successful) {htmx.ajax('GET', '/admin/users/list', '#voter-list-container'); this.reset()}"
+                        class="mt-5 grid gap-4">
+                        <label>
+                            <span class="mb-1 block text-sm font-medium text-base-content/70">ID Siswa</span>
+                            <input type="text" name="student_id" placeholder="Contoh: 2024001" required
+                                class="input input-bordered w-full" />
+                        </label>
+                        <label>
+                            <span class="mb-1 block text-sm font-medium text-base-content/70">Kata Sandi Sementara</span>
+                            <input type="text" name="password" placeholder="Kata sandi awal siswa" required
+                                class="input input-bordered w-full" />
+                        </label>
+                        <div class="flex justify-end">
+                            <button type="submit" class="btn btn-primary gap-2 px-6">
+                                <i data-lucide="user-check"></i> Tambah Siswa
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Bulk upload CSV -->
+                <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+                    <h2 class="flex items-center gap-2 text-lg font-bold">
+                        <i data-lucide="upload-cloud" class="text-primary"></i> Impor Massal (CSV)
+                    </h2>
+                    <p class="mt-1 text-sm text-base-content/60">
+                        Di Excel pilih <strong>File &gt; Save As &gt; CSV (Comma delimited)</strong>.
+                        Format: kolom A = ID Siswa, kolom B = Kata Sandi, dengan baris judul.
+                    </p>
+
+                    <form hx-post="/admin/users/bulk" hx-encoding="multipart/form-data"
+                        hx-target="#bulk-upload-status" hx-swap="innerHTML"
+                        hx-on::after-request="if(event.detail.successful) htmx.ajax('GET', '/admin/users/list', '#voter-list-container')"
+                        class="mt-5 grid gap-4">
+                        <label>
+                            <span class="mb-1 block text-sm font-medium text-base-content/70">Berkas CSV</span>
+                            <input type="file" name="file" accept=".csv" required
+                                class="file-input file-input-bordered w-full" />
+                        </label>
+                        <div class="flex justify-end">
+                            <button type="submit" class="btn btn-success gap-2 px-6">
+                                <i data-lucide="file-up"></i> Impor Data
+                            </button>
+                        </div>
+                    </form>
+
+                    <div id="bulk-upload-status" class="mt-4"></div>
+                </div>
+            </div>
+
+            <!-- Roster -->
+            <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+                <h2 class="flex items-center gap-2 text-lg font-bold">
+                    <i data-lucide="clipboard-list" class="text-primary"></i> Daftar Pemilih
+                </h2>
+
+                <div id="roster-controls" class="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div class="flex w-full flex-col gap-3 sm:flex-row sm:items-end lg:w-2/3">
+                        <label class="w-full">
+                            <span class="mb-1 block text-sm font-medium text-base-content/70">Cari ID Siswa</span>
+                            <input type="search" name="q" placeholder="Cari ID siswa..."
+                                class="input input-bordered w-full"
+                                hx-get="/admin/users/list"
+                                hx-trigger="keyup changed delay:400ms, search"
+                                hx-include="#roster-controls *"
+                                hx-target="#voter-list-container" />
+                        </label>
+
+                        <label class="w-full sm:max-w-[15rem]">
+                            <span class="mb-1 block text-sm font-medium text-base-content/70">Status Memilih</span>
+                            <select name="voted_status"
+                                class="select select-bordered w-full"
+                                hx-get="/admin/users/list"
+                                hx-trigger="change"
+                                hx-include="#roster-controls *"
+                                hx-target="#voter-list-container">
+                                <option value="all" {% if voted_status == 'all' %}selected{% endif %}>Semua Siswa</option>
+                                <option value="voted" {% if voted_status == 'voted' %}selected{% endif %}>Sudah Memilih</option>
+                                <option value="unvoted" {% if voted_status == 'unvoted' %}selected{% endif %}>Belum Memilih</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <div class="flex flex-wrap justify-end gap-2">
+                        <button form="bulk-delete-form" type="submit" class="btn btn-warning btn-sm gap-1.5">
+                            <i data-lucide="user-minus"></i> Hapus Terpilih
+                        </button>
+                        <button hx-delete="/admin/users/all" hx-target="#voter-list-container" hx-swap="innerHTML"
+                            hx-confirm="PERINGATAN: Semua siswa dan suaranya akan dihapus permanen. Lanjutkan?"
+                            class="btn btn-error btn-sm gap-1.5">
+                            <i data-lucide="trash-2"></i> Hapus Semua Siswa
+                        </button>
+                    </div>
+                </div>
+
+                <div id="voter-list-container" class="mt-4">
+                    {% include 'admin/voter_list.html' %}
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================= TAB 4: PENGATURAN ============================= -->
+        <section id="panel-pengaturan" data-tab-panel role="tabpanel" class="hidden space-y-6">
+
+            <!-- Identitas sekolah -->
+            <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+                <h2 class="flex items-center gap-2 text-lg font-bold">
+                    <i data-lucide="school" class="text-primary"></i> Identitas Sekolah
+                </h2>
+                <p class="mt-1 text-sm text-base-content/60">Ubah nama sekolah, subjudul portal, judul browser, logo, dan favicon yang tampil di seluruh halaman.</p>
+
+                <form hx-post="/admin/branding" hx-encoding="multipart/form-data"
+                    hx-target="#branding-status" hx-swap="innerHTML"
+                    hx-on::after-request="if(event.detail.successful) this.reset()"
+                    class="mt-5 grid gap-5">
+
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <label>
+                            <span class="mb-1 block text-sm font-medium text-base-content/70">Nama Sekolah</span>
+                            <input type="text" name="school_name" value="{{ branding.school_name if branding else '' }}" required
+                                class="input input-bordered w-full" />
+                        </label>
+                        <label>
+                            <span class="mb-1 block text-sm font-medium text-base-content/70">Subjudul Portal</span>
+                            <input type="text" name="portal_subtitle" value="{{ branding.portal_subtitle if branding else '' }}" required
+                                class="input input-bordered w-full" />
+                        </label>
+                        <label class="md:col-span-2">
+                            <span class="mb-1 block text-sm font-medium text-base-content/70">Judul Browser (Tab)</span>
+                            <input type="text" name="browser_title" value="{{ branding.browser_title if branding else '' }}"
+                                class="input input-bordered w-full" />
+                        </label>
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="rounded-xl border border-base-300 bg-base-200/40 p-4">
+                            <p class="text-sm font-semibold">Logo Sekolah</p>
+                            <div class="mt-3 flex items-center gap-4">
+                                <img
+                                    src="{{ ('/' + branding.logo_path) if branding and branding.logo_path and not branding.logo_path.startswith('/') else (branding.logo_path if branding and branding.logo_path else '/static/logo_Sekolah.png') }}"
+                                    onerror="this.src='/static/logo_Sekolah.png'"
+                                    alt="Logo saat ini"
+                                    class="h-14 w-14 shrink-0 rounded-xl border border-base-300 bg-base-100 object-contain p-1">
+                                <input type="file" name="logo" accept="image/*"
+                                    class="file-input file-input-bordered w-full" />
+                            </div>
+                            <p class="mt-2 text-xs text-base-content/50">Kosongkan bila tidak ingin mengganti logo.</p>
+                        </div>
+
+                        <div class="rounded-xl border border-base-300 bg-base-200/40 p-4">
+                            <p class="text-sm font-semibold">Favicon</p>
+                            <div class="mt-3 flex items-center gap-4">
+                                <img
+                                    src="{{ ('/' + branding.favicon_path) if branding and branding.favicon_path and not branding.favicon_path.startswith('/') else (branding.favicon_path if branding and branding.favicon_path else '/static/favicon.ico') }}"
+                                    onerror="this.src='/static/logo_Sekolah.png'"
+                                    alt="Favicon saat ini"
+                                    class="h-14 w-14 shrink-0 rounded-xl border border-base-300 bg-base-100 object-contain p-1">
+                                <input type="file" name="favicon" accept="image/*,.ico"
+                                    class="file-input file-input-bordered w-full" />
+                            </div>
+                            <p class="mt-2 text-xs text-base-content/50">Kosongkan bila tidak ingin mengganti favicon.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-2">
+                        <button type="reset" class="btn btn-ghost">Batalkan</button>
+                        <button type="submit" class="btn btn-primary gap-2 px-6">
+                            <i data-lucide="save"></i> Simpan Identitas
+                        </button>
+                    </div>
+
+                    <div id="branding-status"></div>
+                </form>
+            </div>
+
+            <!-- Ganti password -->
+            <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+                <h2 class="flex items-center gap-2 text-lg font-bold">
+                    <i data-lucide="key-round" class="text-primary"></i> Ganti Kata Sandi Admin
+                </h2>
+                <p class="mt-1 text-sm text-base-content/60">Gunakan kata sandi yang kuat dan tidak dipakai di layanan lain.</p>
+
+                <form hx-post="/admin/password/change" hx-target="#password-change-status" hx-swap="innerHTML"
+                    hx-on::after-request="if(event.detail.successful) this.reset()"
+                    class="mt-5 grid gap-4 md:grid-cols-3">
+                    <label>
+                        <span class="mb-1 block text-sm font-medium text-base-content/70">Kata Sandi Saat Ini</span>
+                        <input type="password" name="current_password" required class="input input-bordered w-full" />
+                    </label>
+                    <label>
+                        <span class="mb-1 block text-sm font-medium text-base-content/70">Kata Sandi Baru</span>
+                        <input type="password" name="new_password" required class="input input-bordered w-full" />
+                    </label>
+                    <label>
+                        <span class="mb-1 block text-sm font-medium text-base-content/70">Konfirmasi Kata Sandi Baru</span>
+                        <input type="password" name="confirm_password" required class="input input-bordered w-full" />
+                    </label>
+
+                    <div class="md:col-span-3 flex justify-end">
+                        <button type="submit" class="btn btn-primary gap-2 px-6">
+                            <i data-lucide="shield-check"></i> Perbarui Kata Sandi
+                        </button>
+                    </div>
+
+                    <div id="password-change-status" class="md:col-span-3"></div>
+                </form>
+            </div>
+
+            <!-- Danger zone -->
+            <div class="rounded-2xl border border-error/40 bg-base-100 p-6 shadow-sm">
+                <h2 class="flex items-center gap-2 text-lg font-bold text-error">
+                    <i data-lucide="triangle-alert"></i> Zona Berbahaya
+                </h2>
+                <p class="mt-1 max-w-2xl text-sm text-base-content/60">
+                    Tindakan ini tidak dapat dibatalkan. Seluruh suara yang sudah masuk akan dihapus permanen dan hasil pemilihan kembali ke nol.
+                </p>
+
+                <div class="mt-4 flex justify-end">
+                    <button type="button" class="btn btn-error gap-2" onclick="reset_election_modal.showModal()">
+                        <i data-lucide="rotate-ccw"></i> Reset Seluruh Pemilihan
+                    </button>
+                </div>
+
+                <div id="reset-status-message" class="mt-4"></div>
+            </div>
+
+            <dialog id="reset_election_modal" class="modal">
+                <div class="modal-box">
+                    <h3 class="flex items-center gap-2 text-lg font-bold text-error">
+                        <i data-lucide="triangle-alert"></i> Yakin mereset pemilihan?
+                    </h3>
+                    <p class="py-3 text-sm text-base-content/70">
+                        Semua suara yang telah direkam akan dihapus permanen dan penghitungan dimulai dari nol.
+                        Tindakan ini tidak dapat dibatalkan.
+                    </p>
+                    <div class="modal-action">
+                        <form method="dialog">
+                            <button class="btn btn-ghost">Batal</button>
+                        </form>
+                        <button class="btn btn-error gap-2"
+                            hx-delete="/admin/votes/reset"
+                            hx-target="#reset-status-message"
+                            hx-swap="innerHTML"
+                            hx-on::after-request="reset_election_modal.close()">
+                            <i data-lucide="trash-2"></i> Ya, Reset Sekarang
+                        </button>
+                    </div>
+                </div>
+                <form method="dialog" class="modal-backdrop">
+                    <button>close</button>
+                </form>
+            </dialog>
+        </section>
+
+    </main>
+
+    <script>
+        // ---- Tabs (tanpa mengubah alur HTMX) ----
+        (function () {
+            const buttons = Array.from(document.querySelectorAll('[data-tab-target]'));
+            const panels = Array.from(document.querySelectorAll('[data-tab-panel]'));
+
+            function activate(target, pushHash) {
+                const panel = document.querySelector(target);
+                if (!panel) return;
+
+                buttons.forEach(function (btn) {
+                    const isActive = btn.dataset.tabTarget === target;
+                    btn.classList.toggle('tab-active', isActive);
+                    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                });
+                panels.forEach(function (p) { p.classList.toggle('hidden', p !== panel); });
+
+                if (pushHash && history.replaceState) {
+                    history.replaceState(null, '', target);
+                }
+            }
+
+            buttons.forEach(function (btn) {
+                btn.addEventListener('click', function () { activate(btn.dataset.tabTarget, true); });
+            });
+
+            if (location.hash && document.querySelector('[data-tab-target="' + location.hash + '"]')) {
+                activate(location.hash, false);
+            }
+        })();
+
+        // ---- Sorot tahapan yang sedang aktif (tanpa mengubah alur HTMX) ----
+        function syncStatusButtons() {
+            const badge = document.getElementById('current-status-badge');
+            if (!badge) return;
+            const current = badge.textContent.trim().toUpperCase();
+            document.querySelectorAll('.status-seg button[data-status-value]').forEach(function (btn) {
+                btn.classList.toggle('is-active', btn.dataset.statusValue === current);
+            });
+        }
+
+        // ---- Empty state kandidat ----
+        function syncCandidateEmptyState() {
+            const list = document.getElementById('candidate-list');
+            const empty = document.getElementById('candidates-empty');
+            if (list && empty) empty.classList.toggle('hidden', list.children.length > 0);
+        }
+
+        // ---- Ikon & empty state setelah HTMX menukar sebagian DOM ----
+        document.body.addEventListener('htmx:afterSwap', function () {
+            if (window.lucide) window.lucide.createIcons();
+            syncCandidateEmptyState();
+            syncStatusButtons();
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.lucide) window.lucide.createIcons();
+            syncCandidateEmptyState();
+            syncStatusButtons();
+        });
+    </script>
+</body>
+</html>

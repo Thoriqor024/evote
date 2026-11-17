@@ -1,17 +1,19 @@
-<tr class="bg-gray-50 hover:bg-gray-100 transition-colors">
-    <td class="p-2 border text-center">
-        <input type="checkbox" name="user_ids" value="{{ voter.id }}" class="user-cb cursor-pointer">
+<tr class="transition-colors hover:bg-base-200/60">
+    <td class="text-center">
+        <input type="checkbox" name="user_ids" value="{{ voter.id }}" class="user-cb checkbox checkbox-sm cursor-pointer">
     </td>
-    <td class="p-2 border font-medium text-gray-800">{{ voter.student_id }}</td>
-    <td class="p-2 border text-gray-600">{{ voter.role }}</td>
-    <td class="p-2 border">
-        <button 
-            hx-delete="/admin/users/{{ voter.student_id }}" 
-            hx-target="closest tr" 
+    <td class="font-medium">{{ voter.student_id }}</td>
+    <td>
+        <span class="badge badge-ghost badge-sm uppercase tracking-wide">{{ voter.role }}</span>
+    </td>
+    <td class="text-center">
+        <button
+            hx-delete="/admin/users/{{ voter.student_id }}"
+            hx-target="closest tr"
             hx-swap="outerHTML"
-            hx-confirm="Are you sure you want to delete this student account? This action cannot be undone."
-            class="bg-red-100 text-red-600 hover:bg-red-200 px-3 py-1 rounded font-bold text-sm transition-colors">
-            Delete
+            hx-confirm="Hapus akun siswa ini? Tindakan ini tidak dapat dibatalkan."
+            class="btn btn-xs btn-ghost gap-1 text-error">
+            <i data-lucide="trash-2"></i> Hapus
         </button>
     </td>
 </tr>

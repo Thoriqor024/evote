@@ -1,91 +1,96 @@
-<tr id="cand-row-{{ candidate.id }}" class="hover:bg-gray-50">
-    <td class="p-2 border text-center">
+<div id="cand-row-{{ candidate.id }}"
+    class="rounded-xl border border-base-300 bg-base-100 p-3 shadow-sm transition hover:shadow-md">
+    <div class="flex items-start gap-3">
+
         {% if candidate.photo_path %}
-            <img src="{{ candidate.photo_path }}" alt="Photo" class="w-10 h-10 object-cover rounded-full mx-auto shadow-sm">
+            <img src="{{ candidate.photo_path }}" alt="{{ candidate.name }}"
+                class="h-16 w-16 shrink-0 rounded-xl border border-base-300 object-cover">
         {% else %}
-            <div class="w-10 h-10 bg-gray-200 rounded-full mx-auto flex items-center justify-center text-gray-400 text-xs shadow-sm">No Pic</div>
+            <div class="grid h-16 w-16 shrink-0 place-items-center rounded-xl border border-base-300 bg-base-200 text-xs font-semibold text-base-content/40">
+                Tanpa Foto
+            </div>
         {% endif %}
-    </td>
-    <td class="p-2 border font-medium">{{ candidate.name }}</td>
-    <td class="p-2 border">{{ candidate.position }}</td>
-    <td class="p-2 border">
-        <button 
-            hx-delete="/admin/candidates/{{ candidate.id }}" 
-            hx-target="#cand-row-{{ candidate.id }}"
-            hx-swap="delete"
-            class="bg-red-500 text-white text-sm px-2 py-1 rounded hover:bg-red-600">
-            Remove
-        </button>
 
-        <button onclick="document.getElementById('edit-modal-{{ candidate.id }}').classList.remove('hidden')"
-        class="bg-blue-100 text-blue-600 hover:bg-blue-200 px-3 py-1 rounded font-bold text-sm transition-colors">
-    Edit
-</button>
-<div id="edit-modal-{{ candidate.id }}" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        
-        <!-- Background backdrop (clicking it closes the modal) -->
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" 
-             onclick="document.getElementById('edit-modal-{{ candidate.id }}').classList.add('hidden')"></div>
+        <div class="min-w-0 flex-1">
+            <p class="truncate font-semibold">{{ candidate.name }}</p>
+            <span class="badge badge-ghost badge-sm mt-1">{{ candidate.position }}</span>
+            {% if candidate.manifesto %}
+                <p class="mt-2 line-clamp-2 text-xs leading-relaxed text-base-content/60">{{ candidate.manifesto }}</p>
+            {% endif %}
+        </div>
 
-        <!-- Modal panel -->
-        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg leading-6 font-bold text-gray-900" id="modal-title">Edit Candidate</h3>
-                    <button type="button" onclick="document.getElementById('edit-modal-{{ candidate.id }}').classList.add('hidden')" class="text-gray-400 hover:text-gray-500">
-                        <span class="sr-only">Close</span>
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+        <div class="flex shrink-0 flex-col gap-1.5">
+            <button type="button"
+                onclick="document.getElementById('edit-modal-{{ candidate.id }}').classList.remove('hidden')"
+                class="btn btn-xs btn-ghost gap-1 text-primary">
+                <i data-lucide="pencil"></i> Edit
+            </button>
+
+            <button
+                hx-delete="/admin/candidates/{{ candidate.id }}"
+                hx-target="#cand-row-{{ candidate.id }}"
+                hx-swap="delete"
+                class="btn btn-xs btn-ghost gap-1 text-error">
+                <i data-lucide="trash-2"></i> Hapus
+            </button>
+        </div>
+    </div>
+
+    <div id="edit-modal-{{ candidate.id }}" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title-{{ candidate.id }}">
+        <div class="absolute inset-0 bg-neutral/60 backdrop-blur-sm" aria-hidden="true"
+            onclick="document.getElementById('edit-modal-{{ candidate.id }}').classList.add('hidden')"></div>
+
+        <div class="relative flex min-h-screen items-center justify-center p-4">
+            <div class="w-full max-w-lg overflow-hidden rounded-2xl border border-base-300 bg-base-100 shadow-2xl">
+
+                <div class="flex items-center justify-between border-b border-base-300 px-5 py-4">
+                    <h3 class="text-lg font-bold" id="edit-modal-title-{{ candidate.id }}">Edit Kandidat</h3>
+                    <button type="button"
+                        onclick="document.getElementById('edit-modal-{{ candidate.id }}').classList.add('hidden')"
+                        class="btn btn-ghost btn-sm btn-circle" aria-label="Tutup">
+                        <i data-lucide="x"></i>
                     </button>
                 </div>
 
-                <!-- The Form -->
-                <form action="/admin/candidates/{{ candidate.id }}/edit" method="POST" enctype="multipart/form-data" class="space-y-4">
-                    
-                    <div>
-                        <label class="block font-bold mb-1">Candidate Name</label>
-                        <input type="text" name="name" value="{{ candidate.name }}" required class="w-full border rounded p-2">
-                    </div>
+                <form action="/admin/candidates/{{ candidate.id }}/edit" method="POST" enctype="multipart/form-data" class="grid gap-4 p-5">
+
+                    <label>
+                        <span class="mb-1 block text-sm font-medium text-base-content/70">Nama Kandidat</span>
+                        <input type="text" name="name" value="{{ candidate.name }}" required class="input input-bordered w-full">
+                    </label>
+
+                    <label>
+                        <span class="mb-1 block text-sm font-medium text-base-content/70">Jabatan</span>
+                        <input type="text" name="position" value="{{ candidate.position }}" required class="input input-bordered w-full">
+                    </label>
+
+                    <label>
+                        <span class="mb-1 block text-sm font-medium text-base-content/70">Visi dan Misi</span>
+                        <textarea name="manifesto" rows="4" class="textarea textarea-bordered w-full">{{ candidate.manifesto }}</textarea>
+                    </label>
 
                     <div>
-                        <label class="block font-bold mb-1">Position</label>
-                        <input type="text" name="position" value="{{ candidate.position }}" required class="w-full border rounded p-2">
-                    </div>
+                        <span class="mb-1 block text-sm font-medium text-base-content/70">Ganti Foto (Opsional)</span>
+                        <p class="mb-2 text-xs text-base-content/50">Jika mengunggah foto baru, foto lama otomatis dihapus untuk menghemat penyimpanan.</p>
 
-                    <div>
-                        <label class="block font-bold mb-1">Manifesto (Vision & Mission)</label>
-                        <textarea name="manifesto" rows="4" class="w-full border rounded p-2">{{ candidate.manifesto }}</textarea>
-                    </div>
-
-                    <div>
-                        <label class="block font-bold mb-1">Update Photo (Optional)</label>
-                        <p class="text-xs text-gray-500 mb-2">If you upload a new photo, the old one will be automatically deleted from the server to save space.</p>
-                        
-                        <!-- Show current photo preview -->
                         {% if candidate.photo_path %}
-                            <img src="{{ candidate.photo_path }}" class="w-20 h-20 object-cover rounded-full mb-3 border-2 border-gray-300">
+                            <img src="{{ candidate.photo_path }}" alt="{{ candidate.name }}"
+                                class="mb-3 h-20 w-20 rounded-xl border border-base-300 object-cover">
                         {% endif %}
-                        
-                        <input type="file" name="photo" accept="image/*" class="w-full">
+
+                        <input type="file" name="photo" accept="image/*" class="file-input file-input-bordered w-full">
                     </div>
 
-                    <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse gap-2">
-                        <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto sm:text-sm">
-                            Save Changes
-                        </button>
-                        <button type="button" onclick="document.getElementById('edit-modal-{{ candidate.id }}').classList.add('hidden')" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 sm:mt-0 sm:w-auto sm:text-sm">
-                            Cancel
+                    <div class="mt-1 flex justify-end gap-2">
+                        <button type="button"
+                            onclick="document.getElementById('edit-modal-{{ candidate.id }}').classList.add('hidden')"
+                            class="btn btn-ghost">Batal</button>
+                        <button type="submit" class="btn btn-primary gap-2">
+                            <i data-lucide="save"></i> Simpan Perubahan
                         </button>
                     </div>
                 </form>
-                
             </div>
         </div>
     </div>
 </div>
-    </td>
-</tr>
