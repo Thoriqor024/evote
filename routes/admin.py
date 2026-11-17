@@ -1,11 +1,14 @@
 import csv
 import io
 import math
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Request, Form, Depends, Response, UploadFile, File, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from fastapi_cache.decorator import cache
@@ -15,6 +18,7 @@ from fastapi_cache import FastAPICache
 import database
 from database import User, Candidate, Vote, ElectionState, SiteBranding
 from utilities.utilities import get_db, get_current_user, save_upload, delete_upload
+from utilities import saas
 
 admin_router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -99,6 +103,43 @@ async def get_user_list(
     )
 
 
+@admin_router.get("/admin/users/export")
+async def export_users_excel(request: Request, db: Session = Depends(get_db)):
+    """Unduh seluruh data pemilih sebagai berkas Excel (.xlsx)."""
+    user = get_current_user(request, db)
+    if not user or user.role != "admin":
+        return HTMLResponse("Unauthorized", status_code=403)
+
+    voters = db.query(User).filter(User.role == "student").order_by(User.id.desc()).all()
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Data Pemilih"
+
+    sheet.append(["ID Siswa", "Nama Lengkap", "Peran", "Password"])
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(vertical="center")
+
+    for voter in voters:
+        sheet.append([voter.student_id, voter.name or "", voter.role, voter.password])
+
+    for column, width in {"A": 20, "B": 34, "C": 14, "D": 24}.items():
+        sheet.column_dimensions[column].width = width
+    sheet.freeze_panes = "A2"
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+
+    filename = "data_pemilih_{}.xlsx".format(datetime.now().strftime("%Y%m%d_%H%M"))
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="{}"'.format(filename)},
+    )
+
+
 @admin_router.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
@@ -131,7 +172,9 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             "status": state.status if state else "SETUP",
             "voted_status": "all",
             "turnout_pct": round(turnout_pct, 1),
-            "branding": branding
+            "branding": branding,
+            "saas_configured": saas.is_configured(),
+            "saas_base_url": saas.base_url(),
         }
     )
 
@@ -392,6 +435,97 @@ async def add_users_bulk(
         return HTMLResponse(
             f"<div class='p-3 mt-2 bg-red-100 text-red-700 border border-red-400 rounded shadow-sm'>Error parsing file. Detail: {str(e)}</div>"
         )
+
+
+def _saas_alert(level: str, message: str) -> str:
+    """Kotak notifikasi DaisyUI untuk hasil sinkronisasi SaaS."""
+    styles = {
+        "success": ("alert-success", "check-circle-2", "Sinkronisasi selesai"),
+        "warning": ("alert-warning", "triangle-alert", "Integrasi belum aktif"),
+        "error": ("alert-error", "circle-alert", "Sinkronisasi gagal"),
+    }
+    css_class, icon, title = styles.get(level, styles["warning"])
+    return (
+        f"<div role='status' class='alert {css_class} items-start gap-3 text-sm'>"
+        f"<i data-lucide='{icon}' class='mt-0.5 shrink-0'></i>"
+        f"<div><p class='font-semibold'>{title}</p><p class='mt-0.5 leading-relaxed'>{message}</p></div>"
+        f"</div>"
+    )
+
+
+@admin_router.post("/admin/sync-saas", response_class=HTMLResponse)
+async def sync_saas_data(
+    request: Request,
+    source: str = Form("students"),
+    mode: str = Form("all"),
+    employee_type: str = Form(""),
+    default_password: str = Form(""),
+    db: Session = Depends(get_db)
+):
+    """Sinkronisasi pemilih dari database utama SaaS (opsional)."""
+    user = get_current_user(request, db)
+    if not user or user.role != "admin":
+        return HTMLResponse("Unauthorized", status_code=403)
+
+    if not saas.is_configured():
+        return HTMLResponse(_saas_alert(
+            "warning",
+            "Fitur ini opsional dan belum aktif karena <strong>SAAS_API_KEY</strong> belum diatur di "
+            "environment server. Tambahkan variabel tersebut lalu restart aplikasi. Sementara itu Anda tetap "
+            "bisa menambah pemilih lewat Input Manual atau Impor Massal CSV."
+        ))
+
+    source = (source or "students").strip().lower()
+    mode = (mode or "all").strip().lower()
+    employee_type = (employee_type or "").strip()
+
+    allowed_modes = saas.STUDENT_MODES if source == "students" else saas.EMPLOYEE_MODES
+    if source not in ("students", "employees") or mode not in allowed_modes:
+        return HTMLResponse(_saas_alert(
+            "error",
+            "Kombinasi sumber data dan filter tidak valid. Pilih sumber <em>Siswa</em> (Semua / Hanya Active) "
+            "atau <em>Pegawai</em> (Semua / Berdasarkan Type)."
+        ))
+
+    if source == "employees" and mode == "by_type" and not employee_type:
+        return HTMLResponse(_saas_alert(
+            "error",
+            "Isi tipe pegawai terlebih dahulu (contoh: teacher, staff, general)."
+        ))
+
+    try:
+        summary = await saas.sync_voters(
+            db,
+            source=source,
+            mode=mode,
+            employee_type=employee_type or None,
+            default_password=default_password or None,
+        )
+    except saas.SaasError as exc:
+        db.rollback()
+        return HTMLResponse(_saas_alert("error", str(exc)))
+    except Exception as exc:  # noqa: BLE001 - jangan biarkan halaman admin crash
+        db.rollback()
+        return HTMLResponse(_saas_alert("error", f"Terjadi kesalahan tak terduga saat sinkronisasi: {exc}"))
+
+    await FastAPICache.clear()
+
+    label = "siswa" if source == "students" else "pegawai"
+    filter_label = {
+        "all": "semua",
+        "active": "status active",
+        "by_type": f"type {employee_type}",
+    }.get(mode, mode)
+
+    details = (
+        f"<strong>{summary['imported']}</strong> {label} baru berhasil diimpor dan "
+        f"<strong>{summary['skipped']}</strong> dilewati karena ID-nya sudah terdaftar "
+        f"(filter: {filter_label}, total diterima dari API: {summary['fetched']})."
+    )
+    if summary["without_id"]:
+        details += f" {summary['without_id']} data dilewati karena tidak memiliki NISN/nomor pegawai/ID."
+
+    return HTMLResponse(_saas_alert("success", details))
 
 
 @admin_router.post("/admin/branding", response_class=HTMLResponse)

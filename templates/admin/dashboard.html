@@ -392,6 +392,85 @@
                 </div>
             </div>
 
+            <!-- Sinkronisasi database SaaS sekolah (opsional) -->
+            <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h2 class="flex items-center gap-2 text-lg font-bold">
+                            <i data-lucide="cloud-download" class="text-primary"></i> Sinkronisasi Database Utama (SaaS)
+                        </h2>
+                        <p class="mt-1 max-w-2xl text-sm text-base-content/60">
+                            Cara <strong>opsional</strong> untuk menarik data siswa atau pegawai langsung dari sistem SaaS sekolah.
+                            Pemilih yang ID-nya sudah terdaftar akan dilewati, sehingga suara yang sudah masuk tetap aman.
+                        </p>
+                    </div>
+                    <div class="text-right">
+                        {% if saas_configured %}
+                            <span class="badge badge-success badge-sm gap-1 font-semibold"><i data-lucide="check"></i> Aktif</span>
+                        {% else %}
+                            <span class="badge badge-ghost badge-sm font-semibold">Belum aktif</span>
+                        {% endif %}
+                        <p class="mt-1 max-w-[16rem] truncate text-[11px] text-base-content/40" title="{{ saas_base_url }}">{{ saas_base_url }}</p>
+                    </div>
+                </div>
+
+                {% if not saas_configured %}
+                <div role="status" class="alert alert-warning mt-4 items-start gap-3 text-sm">
+                    <i data-lucide="triangle-alert" class="mt-0.5 shrink-0"></i>
+                    <div>
+                        <p class="font-semibold">Integrasi SaaS belum dikonfigurasi</p>
+                        <p class="mt-0.5 leading-relaxed text-base-content/70">
+                            Tambahkan variabel environment <strong>SAAS_API_KEY</strong> (dan bila perlu
+                            <strong>SAAS_API_BASE_URL</strong>) lalu restart server. Selama belum diatur, menu ini tidak
+                            akan berfungsi — gunakan Input Manual atau Impor Massal CSV.
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <form hx-post="/admin/sync-saas" hx-target="#saas-sync-status" hx-swap="innerHTML"
+                    hx-indicator="#saas-spinner"
+                    hx-on::after-request="if(event.detail.successful && event.detail.xhr.status === 200) htmx.ajax('GET', '/admin/users/list', '#voter-list-container')"
+                    class="mt-5 grid gap-4 lg:grid-cols-12">
+                    <label class="lg:col-span-4">
+                        <span class="mb-1 block text-sm font-medium text-base-content/70">Sumber Data</span>
+                        <select name="source" id="saas-source" class="select select-bordered w-full" onchange="syncSaasFields()">
+                            <option value="students">Siswa (students)</option>
+                            <option value="employees">Pegawai (employees)</option>
+                        </select>
+                    </label>
+
+                    <label class="lg:col-span-4">
+                        <span class="mb-1 block text-sm font-medium text-base-content/70">Filter Sinkronisasi</span>
+                        <select name="mode" id="saas-mode" class="select select-bordered w-full" onchange="syncSaasFields()">
+                            <option value="all">Assign Semua Siswa</option>
+                            <option value="active">Hanya Siswa Active</option>
+                        </select>
+                    </label>
+
+                    <label id="saas-type-field" class="hidden lg:col-span-4">
+                        <span class="mb-1 block text-sm font-medium text-base-content/70">Tipe Pegawai</span>
+                        <input type="text" name="employee_type" id="saas-employee-type" placeholder="teacher, staff, general"
+                            class="input input-bordered w-full" />
+                    </label>
+
+                    <label class="lg:col-span-8">
+                        <span class="mb-1 block text-sm font-medium text-base-content/70">Kata Sandi Default (opsional)</span>
+                        <input type="text" name="default_password" placeholder="Kosongkan untuk memakai NISN / nomor pegawai"
+                            class="input input-bordered w-full" />
+                    </label>
+
+                    <div class="flex items-end justify-end lg:col-span-4">
+                        <button type="submit" class="btn btn-primary w-full gap-2 sm:w-auto" hx-disabled-elt="this">
+                            <span id="saas-spinner" class="htmx-indicator loading loading-spinner loading-xs"></span>
+                            <i data-lucide="refresh-cw"></i> Sinkronkan Sekarang
+                        </button>
+                    </div>
+                </form>
+
+                <div id="saas-sync-status" class="mt-4"></div>
+            </div>
+
             <!-- Roster -->
             <div class="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
                 <h2 class="flex items-center gap-2 text-lg font-bold">
@@ -426,6 +505,11 @@
                     </div>
 
                     <div class="flex flex-wrap justify-end gap-2">
+                        <a href="/admin/users/export"
+                            title="Unduh seluruh data pemilih (ID, nama, peran, password) sebagai Excel"
+                            class="btn btn-outline btn-sm gap-1.5">
+                            <i data-lucide="file-spreadsheet"></i> Ekspor Excel
+                        </a>
                         <button form="bulk-delete-form" type="submit" class="btn btn-warning btn-sm gap-1.5">
                             <i data-lucide="user-minus"></i> Hapus Terpilih
                         </button>
@@ -646,6 +730,35 @@
             if (list && empty) empty.classList.toggle('hidden', list.children.length > 0);
         }
 
+        // ---- Pilihan filter mengikuti sumber data (Siswa / Pegawai) ----
+        function syncSaasFields() {
+            const source = document.getElementById('saas-source');
+            const mode = document.getElementById('saas-mode');
+            const typeField = document.getElementById('saas-type-field');
+            const typeInput = document.getElementById('saas-employee-type');
+            if (!source || !mode) return;
+
+            const isEmployees = source.value === 'employees';
+            const options = isEmployees
+                ? [['all', 'Assign Semua Pegawai'], ['by_type', 'Assign Berdasarkan Type']]
+                : [['all', 'Assign Semua Siswa'], ['active', 'Hanya Siswa Active']];
+
+            const previous = mode.value;
+            mode.innerHTML = options.map(function (opt) {
+                return '<option value="' + opt[0] + '">' + opt[1] + '</option>';
+            }).join('');
+            mode.value = options.some(function (opt) { return opt[0] === previous; }) ? previous : 'all';
+
+            const showType = isEmployees && mode.value === 'by_type';
+            if (typeField) typeField.classList.toggle('hidden', !showType);
+            if (typeInput) {
+                typeInput.required = showType;
+                if (!showType) typeInput.value = '';
+            }
+
+            if (window.lucide) window.lucide.createIcons();
+        }
+
         // ---- Ikon & empty state setelah HTMX menukar sebagian DOM ----
         document.body.addEventListener('htmx:afterSwap', function () {
             if (window.lucide) window.lucide.createIcons();
@@ -657,6 +770,7 @@
             if (window.lucide) window.lucide.createIcons();
             syncCandidateEmptyState();
             syncStatusButtons();
+            syncSaasFields();
         });
     </script>
 </body>
